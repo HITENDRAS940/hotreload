@@ -1,15 +1,15 @@
 package main
 
 import (
-	"context"
 	"log/slog"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 
 	"hotreload/internal/builder"
 	"hotreload/internal/config"
+	"hotreload/internal/orchestrator"
+	"hotreload/internal/runner"
 	"hotreload/internal/watcher"
 )
 
@@ -38,50 +38,19 @@ func main() {
 
 	b := builder.NewBuilder(cfg.BuildCmd)
 
-	var buildCancel context.CancelFunc
-	var buildMutex sync.Mutex
-	mainCtx, mainCancel := context.WithCancel(context.Background())
-	defer mainCancel()
+	var r *runner.Runner
+	if cfg.ExecCmd != "" {
+		r = runner.NewRunner(cfg.ExecCmd)
+	}
+
+	orch := orchestrator.New(w, b, r)
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	for {
-		select {
-		case <-w.Events():
-			slog.Info("rebuild triggered")
 
-			buildMutex.Lock()
-			if buildCancel != nil {
-				slog.Info("cancelling previous build")
-				buildCancel()
-			}
-			buildMutex.Unlock()
+	go orch.Run()
 
-			buildCtx, cancel := context.WithCancel(mainCtx)
-			buildMutex.Lock()
-			buildCancel = cancel
-			buildMutex.Unlock()
-
-			go func(ctx context.Context) {
-				err := b.Build(ctx)
-				if err != nil {
-					slog.Error("build failed, waiting for next change", "error", err)
-				}
-			}(buildCtx)
-
-		case err := <-w.Errors():
-			slog.Error("watcher error", "error", err)
-
-		case sig := <-sigChan:
-			slog.Info("shutdown signal received", "signal", sig)
-
-			buildMutex.Lock()
-			if buildCancel != nil {
-				slog.Info("cancelling build during shutdown")
-				buildCancel()
-			}
-			buildMutex.Unlock()
-
-			return
-		}
-	}
+	sig := <-sigChan
+	slog.Info("shutdown signal received", "signal", sig)
+	orch.Shutdown()
 }
