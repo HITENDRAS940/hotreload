@@ -14,13 +14,11 @@ import (
 )
 
 func main() {
-	// Set up structured logging — human-readable, timestamped.
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
 	slog.SetDefault(logger)
 
-	// Parse and validate CLI flags.
 	cfg := config.Parse()
 
 	slog.Info("hotreload started",
@@ -29,7 +27,6 @@ func main() {
 		"exec", cfg.ExecCmd,
 	)
 
-	// Phase 2: Create file watcher
 	w, err := watcher.NewWatcher(cfg.Root)
 	if err != nil {
 		slog.Error("failed to create watcher", "error", err)
@@ -39,27 +36,19 @@ func main() {
 
 	slog.Info("watcher initialized, watching for changes...")
 
-	// Phase 3: Create builder for executing build commands
 	b := builder.NewBuilder(cfg.BuildCmd)
 
-	// Context management for in-flight builds
-	// When a new rebuild is triggered, the previous build is cancelled
-	var buildCancel context.CancelFunc        // Cancel function for current build
-	var buildMutex sync.Mutex                 // Protects buildCancel
+	var buildCancel context.CancelFunc
+	var buildMutex sync.Mutex
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer mainCancel()
-
-	// Set up signal handlers for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	// Main event loop
 	for {
 		select {
 		case <-w.Events():
 			slog.Info("rebuild triggered")
 
-			// Cancel any previous in-flight build
 			buildMutex.Lock()
 			if buildCancel != nil {
 				slog.Info("cancelling previous build")
@@ -67,18 +56,15 @@ func main() {
 			}
 			buildMutex.Unlock()
 
-			// Create new context for this build
 			buildCtx, cancel := context.WithCancel(mainCtx)
 			buildMutex.Lock()
 			buildCancel = cancel
 			buildMutex.Unlock()
 
-			// Run build in goroutine so watcher remains responsive
 			go func(ctx context.Context) {
 				err := b.Build(ctx)
 				if err != nil {
 					slog.Error("build failed, waiting for next change", "error", err)
-					// Don't exit on build failure — just wait for next file change
 				}
 			}(buildCtx)
 
@@ -88,7 +74,6 @@ func main() {
 		case sig := <-sigChan:
 			slog.Info("shutdown signal received", "signal", sig)
 
-			// Cancel any in-flight build
 			buildMutex.Lock()
 			if buildCancel != nil {
 				slog.Info("cancelling build during shutdown")

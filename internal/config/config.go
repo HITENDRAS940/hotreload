@@ -7,15 +7,12 @@ import (
 	"path/filepath"
 )
 
-// Config holds the validated CLI arguments for hotreload.
 type Config struct {
-	Root     string // Absolute path to the project root directory
-	BuildCmd string // Shell command to build the project
-	ExecCmd  string // Shell command to run the built server
+	Root     string
+	BuildCmd string
+	ExecCmd  string
 }
 
-// Parse reads CLI flags, validates them, and returns a Config.
-// It exits with code 1 and prints usage on invalid input.
 func Parse() Config {
 	var cfg Config
 
