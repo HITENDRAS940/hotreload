@@ -6,11 +6,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"hotreload/internal/builder"
-	"hotreload/internal/config"
-	"hotreload/internal/orchestrator"
-	"hotreload/internal/runner"
-	"hotreload/internal/watcher"
+	"github.com/HITENDRAS940/hotreload/internal/builder"
+	"github.com/HITENDRAS940/hotreload/internal/config"
+	"github.com/HITENDRAS940/hotreload/internal/orchestrator"
+	"github.com/HITENDRAS940/hotreload/internal/runner"
+	"github.com/HITENDRAS940/hotreload/internal/watcher"
 )
 
 func main() {

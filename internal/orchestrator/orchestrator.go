@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"hotreload/internal/builder"
-	"hotreload/internal/runner"
-	"hotreload/internal/watcher"
+	"github.com/HITENDRAS940/hotreload/internal/builder"
+	"github.com/HITENDRAS940/hotreload/internal/runner"
+	"github.com/HITENDRAS940/hotreload/internal/watcher"
 )
 
 type Orchestrator struct {

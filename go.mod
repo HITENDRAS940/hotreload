@@ -1,4 +1,4 @@
-module hotreload
+module github.com/HITENDRAS940/hotreload
 
 go 1.24.3
 
