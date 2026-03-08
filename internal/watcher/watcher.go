@@ -13,19 +13,28 @@ import (
 )
 
 type Watcher struct {
-	fw          *fsnotify.Watcher
-	root        string
-	debounc     *DebouncedSignal
-	events      chan struct{}
-	errChan     chan error
-	done        chan struct{}
-	mu          sync.Mutex
-	watched     map[string]bool
-	extraIgnore []string
-	watchAll    bool // true when no .hotreloadignore — watch every file
+	fw           *fsnotify.Watcher
+	root         string
+	debounc      *DebouncedSignal
+	events       chan struct{}
+	errChan      chan error
+	done         chan struct{}
+	mu           sync.Mutex
+	watched      map[string]bool
+	extraIgnore  []string
+	watchAll     bool   // true when no .hotreloadignore — watch every file
+	buildOutDir  string // directory of the exec binary — always ignored
 }
 
-func NewWatcher(root string) (*Watcher, error) {
+func NewWatcher(root, execPath string) (*Watcher, error) {
+	// Resolve the build-output directory so we never watch the binary being
+	// written — otherwise the rebuild itself triggers the next rebuild.
+	buildOutDir := ""
+	if execPath != "" {
+		if abs, err := filepath.Abs(filepath.Dir(execPath)); err == nil {
+			buildOutDir = abs
+		}
+	}
 	extraIgnore := LoadIgnorePatterns(root)
 
 	// nil means the file was not found and user chose to continue without it —
@@ -58,6 +67,7 @@ func NewWatcher(root string) (*Watcher, error) {
 		watched:     make(map[string]bool),
 		extraIgnore: extraIgnore,
 		watchAll:    watchAll,
+		buildOutDir: buildOutDir,
 	}
 
 	if err := w.walkAndWatch(root); err != nil {
@@ -84,6 +94,12 @@ func (w *Watcher) walkAndWatch(root string) error {
 		}
 
 		// When watchAll, skip nothing — add every directory
+		// Exception: always skip the build-output directory to prevent loops.
+		if w.buildOutDir != "" {
+			if abs, err := filepath.Abs(path); err == nil && abs == w.buildOutDir {
+				return filepath.SkipDir
+			}
+		}
 		if !w.watchAll && shouldIgnore(path, w.extraIgnore) {
 			return filepath.SkipDir
 		}
@@ -110,6 +126,15 @@ func (w *Watcher) eventLoop() {
 		case event, ok := <-w.fw.Events:
 			if !ok {
 				return
+			}
+
+			// Always skip build-output directory events to prevent rebuild loops.
+			if w.buildOutDir != "" {
+				if abs, err := filepath.Abs(event.Name); err == nil {
+					if abs == w.buildOutDir || len(abs) > len(w.buildOutDir) && abs[:len(w.buildOutDir)+1] == w.buildOutDir+"/" {
+						continue
+					}
+				}
 			}
 
 			// When watchAll, skip shouldIgnore entirely

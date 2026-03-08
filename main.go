@@ -23,7 +23,7 @@ func main() {
 	ui.Config("exec", cfg.ExecCmd)
 	ui.Separator()
 
-	w, err := watcher.NewWatcher(cfg.Root)
+	w, err := watcher.NewWatcher(cfg.Root, cfg.ExecCmd)
 	if err != nil {
 		ui.Fatal("failed to create watcher: " + err.Error())
 	}
