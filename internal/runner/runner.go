@@ -118,7 +118,11 @@ func (r *Runner) Stop() error {
 		case <-timeout:
 			ui.Warn(fmt.Sprintf("SIGTERM timeout, sending SIGKILL  (pgid: %d)", pgid))
 			killProcessGroup(pgid, true)
-			ui.Warn("sent SIGKILL")
+			// Hard fallback: directly kill via the OS handle (works on all platforms).
+			if cmd.Process != nil {
+				cmd.Process.Kill() //nolint:errcheck
+			}
+			ui.Warn("process killed")
 
 			r.mu.Lock()
 			r.running = false

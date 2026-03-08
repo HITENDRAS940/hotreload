@@ -60,7 +60,7 @@ func NewWatcher(root, execPath string) (*Watcher, error) {
 	w := &Watcher{
 		fw:          fw,
 		root:        root,
-		debounc:     NewDebouncedSignal(150 * time.Millisecond),
+		debounc:     NewDebouncedSignal(500 * time.Millisecond),
 		events:      make(chan struct{}),
 		errChan:     make(chan error, 10),
 		done:        make(chan struct{}),
