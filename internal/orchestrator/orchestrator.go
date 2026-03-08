@@ -2,12 +2,13 @@ package orchestrator
 
 import (
 	"context"
-	"log/slog"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/HITENDRAS940/hotreload/internal/builder"
 	"github.com/HITENDRAS940/hotreload/internal/runner"
+	"github.com/HITENDRAS940/hotreload/internal/ui"
 	"github.com/HITENDRAS940/hotreload/internal/watcher"
 )
 
@@ -15,7 +16,6 @@ type Orchestrator struct {
 	w              *watcher.Watcher
 	b              *builder.Builder
 	r              *runner.Runner
-	logger         *slog.Logger
 	buildMutex     sync.Mutex
 	serverMutex    sync.Mutex
 	buildCancel    context.CancelFunc
@@ -33,7 +33,6 @@ func New(w *watcher.Watcher, b *builder.Builder, r *runner.Runner) *Orchestrator
 		w:              w,
 		b:              b,
 		r:              r,
-		logger:         slog.Default(),
 		buildCancel:    nil,
 		mainCtx:        mainCtx,
 		mainCancel:     mainCancel,
@@ -53,11 +52,11 @@ func (o *Orchestrator) Run() {
 	for {
 		select {
 		case <-o.w.Events():
-			o.logger.Info("file change detected")
+			ui.Step("file change detected  →  rebuilding")
 			o.triggerRebuild()
 
 		case err := <-o.w.Errors():
-			o.logger.Error("watcher error", "error", err)
+			ui.Error("watcher error: " + err.Error())
 
 		case <-serverDeadChan:
 			o.handleServerCrash()
@@ -71,14 +70,14 @@ func (o *Orchestrator) Run() {
 func (o *Orchestrator) triggerRebuild() {
 	o.serverMutex.Lock()
 	if o.r != nil && o.r.IsRunning() {
-		o.logger.Info("stopping server before rebuild")
+		// stop happens silently — runner emits its own ui output
 		o.r.Stop()
 	}
 	o.serverMutex.Unlock()
 
 	o.buildMutex.Lock()
 	if o.buildCancel != nil {
-		o.logger.Info("cancelling previous build")
+		// cancel silently
 		o.buildCancel()
 	}
 	o.buildMutex.Unlock()
@@ -94,7 +93,7 @@ func (o *Orchestrator) triggerRebuild() {
 func (o *Orchestrator) runBuild(ctx context.Context) {
 	err := o.b.Build(ctx)
 	if err != nil {
-		o.logger.Error("build failed", "error", err)
+		// builder already printed ui.Fail — nothing more to do here
 		return
 	}
 
@@ -102,15 +101,14 @@ func (o *Orchestrator) runBuild(ctx context.Context) {
 	defer o.serverMutex.Unlock()
 
 	if o.r != nil && !o.r.IsRunning() {
-		o.logger.Info("build succeeded, starting server")
-
+		// runner emits its own started ui output
 		o.crashMutex.Lock()
 		o.crashTimes = make([]time.Time, 0)
 		o.crashMutex.Unlock()
 
 		err := o.r.Start()
 		if err != nil {
-			o.logger.Error("failed to start server", "error", err)
+			ui.Error("failed to start server: " + err.Error())
 		}
 	}
 }
@@ -133,7 +131,7 @@ func (o *Orchestrator) monitorServer(serverDeadChan chan struct{}) {
 }
 
 func (o *Orchestrator) handleServerCrash() {
-	o.logger.Error("server crashed unexpectedly")
+	ui.Error("server crashed unexpectedly")
 
 	o.crashMutex.Lock()
 	now := time.Now()
@@ -149,15 +147,15 @@ func (o *Orchestrator) handleServerCrash() {
 	o.crashTimes = validCrashes
 
 	crashCount := len(o.crashTimes)
-	o.logger.Warn("crash detected", "count_in_10s", crashCount)
+	ui.Warn(fmt.Sprintf("crash #%d detected in last 10s", crashCount))
 
 	if crashCount >= 3 {
-		o.logger.Error("crash loop detected (3+ crashes in 10s), waiting 5 seconds before resume")
+		ui.Error("crash loop detected (3+ crashes in 10s) — backing off 5s")
 		o.crashMutex.Unlock()
 
 		select {
 		case <-time.After(5 * time.Second):
-			o.logger.Info("resuming after crash-loop backoff")
+			ui.Info("resuming after crash-loop backoff")
 		case <-o.mainCtx.Done():
 			return
 		}
@@ -173,18 +171,16 @@ func (o *Orchestrator) handleServerCrash() {
 }
 
 func (o *Orchestrator) Shutdown() {
-	o.logger.Info("orchestrator shutting down")
+	ui.Warn("shutting down")
 
 	o.serverMutex.Lock()
 	if o.r != nil && o.r.IsRunning() {
-		o.logger.Info("stopping server during shutdown")
 		o.r.Stop()
 	}
 	o.serverMutex.Unlock()
 
 	o.buildMutex.Lock()
 	if o.buildCancel != nil {
-		o.logger.Info("cancelling build during shutdown")
 		o.buildCancel()
 	}
 	o.buildMutex.Unlock()

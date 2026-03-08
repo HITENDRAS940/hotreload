@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/HITENDRAS940/hotreload/internal/ui"
 )
 
 type Config struct {
@@ -21,16 +23,17 @@ func Parse() Config {
 	flag.StringVar(&cfg.ExecCmd, "exec", "", "exec command to run after build (e.g. \"./bin/server\")")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: hotreload [flags]\n\nFlags:\n")
+		fmt.Fprintf(os.Stderr, "\n  Usage: hotreload [flags]\n\n  Flags:\n")
 		flag.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "\nExample:\n  hotreload --root ./myproject --build \"go build -o ./bin/server ./cmd/server\" --exec \"./bin/server\"\n")
-		fmt.Fprintf(os.Stderr, "\nIgnore patterns:\n  Add a .hotreloadignore file in your project root to exclude files/folders.\n")
+		fmt.Fprintf(os.Stderr, "\n  Example:\n    hotreload --root ./myproject --build \"go build -o ./bin/server ./cmd/server\" --exec \"./bin/server\"\n")
+		fmt.Fprintf(os.Stderr, "\n  Ignore patterns:\n    Add a .hotreloadignore file in your project root to exclude files/folders.\n\n")
 	}
 
 	flag.Parse()
 
 	if err := cfg.validate(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n\n", err)
+		ui.Error(err.Error())
+		fmt.Fprintln(os.Stderr)
 		flag.Usage()
 		os.Exit(1)
 	}

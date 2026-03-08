@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,31 +9,27 @@ import (
 	"github.com/HITENDRAS940/hotreload/internal/config"
 	"github.com/HITENDRAS940/hotreload/internal/orchestrator"
 	"github.com/HITENDRAS940/hotreload/internal/runner"
+	"github.com/HITENDRAS940/hotreload/internal/ui"
 	"github.com/HITENDRAS940/hotreload/internal/watcher"
 )
 
 func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
-	slog.SetDefault(logger)
+	ui.Banner()
 
 	cfg := config.Parse()
 
-	slog.Info("hotreload started",
-		"root", cfg.Root,
-		"build", cfg.BuildCmd,
-		"exec", cfg.ExecCmd,
-	)
+	ui.Config("root", cfg.Root)
+	ui.Config("build", cfg.BuildCmd)
+	ui.Config("exec", cfg.ExecCmd)
+	ui.Separator()
 
 	w, err := watcher.NewWatcher(cfg.Root)
 	if err != nil {
-		slog.Error("failed to create watcher", "error", err)
-		os.Exit(1)
+		ui.Fatal("failed to create watcher: " + err.Error())
 	}
 	defer w.Close()
 
-	slog.Info("watcher initialized, watching for changes...")
+	ui.Separator()
 
 	b := builder.NewBuilder(cfg.BuildCmd)
 
@@ -51,6 +46,7 @@ func main() {
 	go orch.Run()
 
 	sig := <-sigChan
-	slog.Info("shutdown signal received", "signal", sig)
+	ui.Warn("shutdown signal received: " + sig.String())
 	orch.Shutdown()
 }
+

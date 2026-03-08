@@ -3,28 +3,25 @@ package builder
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/HITENDRAS940/hotreload/internal/ui"
 )
 
 type Builder struct {
 	command string
-	logger  *slog.Logger
 }
 
 func NewBuilder(command string) *Builder {
-	return &Builder{
-		command: command,
-		logger:  slog.Default(),
-	}
+	return &Builder{command: command}
 }
 
 func (b *Builder) Build(ctx context.Context) error {
 	startTime := time.Now()
-	b.logger.Info("build started")
+	ui.Step("build started")
 
 	parts := parseShellCommand(b.command)
 	if len(parts) == 0 {
@@ -39,23 +36,16 @@ func (b *Builder) Build(ctx context.Context) error {
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
-	b.logger.Debug("executing build command", "command", b.command)
-
 	err := cmd.Run()
 
 	elapsed := time.Since(startTime)
 
 	if err != nil {
-		b.logger.Error("build failed",
-			"error", err,
-			"duration", elapsed.String(),
-		)
+		ui.Fail("build failed", elapsed.Round(time.Millisecond).String())
 		return fmt.Errorf("build failed: %w", err)
 	}
 
-	b.logger.Info("build succeeded",
-		"duration", elapsed.String(),
-	)
+	ui.Done("build complete", elapsed.Round(time.Millisecond).String())
 	return nil
 }
 

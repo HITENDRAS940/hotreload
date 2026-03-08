@@ -2,20 +2,20 @@ package runner
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/HITENDRAS940/hotreload/internal/ui"
 )
 
 type Runner struct {
 	cmdString string
 	pgid      int
 	cmd       *exec.Cmd
-	logger    *slog.Logger
 	mu        sync.Mutex
 	running   bool
 }
@@ -25,7 +25,6 @@ func NewRunner(cmdString string) *Runner {
 		cmdString: cmdString,
 		pgid:      0,
 		cmd:       nil,
-		logger:    slog.Default(),
 		running:   false,
 	}
 }
@@ -39,7 +38,7 @@ func (r *Runner) Start() error {
 	r.mu.Unlock()
 
 	startTime := time.Now()
-	r.logger.Info("server starting")
+	ui.Step("server starting")
 
 	parts := parseShellCommand(r.cmdString)
 	if len(parts) == 0 {
@@ -56,11 +55,9 @@ func (r *Runner) Start() error {
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
-	r.logger.Debug("executing server command", "command", r.cmdString)
-
 	err := cmd.Start()
 	if err != nil {
-		r.logger.Error("failed to start server", "error", err)
+		ui.Error("failed to start server: " + err.Error())
 		return fmt.Errorf("server start failed: %w", err)
 	}
 
@@ -70,10 +67,7 @@ func (r *Runner) Start() error {
 	r.running = true
 	r.mu.Unlock()
 
-	r.logger.Info("server started",
-		"pid", cmd.Process.Pid,
-		"duration", time.Since(startTime).String(),
-	)
+	ui.Done(fmt.Sprintf("server started  (pid: %d)", cmd.Process.Pid), time.Since(startTime).Round(time.Millisecond).String())
 
 	go r.waitForExit()
 
@@ -92,11 +86,11 @@ func (r *Runner) waitForExit() {
 	r.mu.Unlock()
 
 	if err != nil {
-		r.logger.Error("server exited with error", "error", err)
+		ui.Fail("server exited with error", err.Error())
 		return
 	}
 
-	r.logger.Info("server exited")
+	ui.Info("server exited")
 }
 
 func (r *Runner) Stop() error {
@@ -108,10 +102,9 @@ func (r *Runner) Stop() error {
 	pgid := r.pgid
 	r.mu.Unlock()
 
-	r.logger.Info("stopping server", "pgid", pgid)
+	ui.Step(fmt.Sprintf("stopping server  (pgid: %d)", pgid))
 
 	syscall.Kill(-pgid, syscall.SIGTERM)
-	r.logger.Debug("sent SIGTERM to process group", "pgid", pgid)
 
 	timeout := time.After(3 * time.Second)
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -120,9 +113,9 @@ func (r *Runner) Stop() error {
 	for {
 		select {
 		case <-timeout:
-			r.logger.Warn("SIGTERM timeout, sending SIGKILL", "pgid", pgid)
+			ui.Warn(fmt.Sprintf("SIGTERM timeout, sending SIGKILL  (pgid: %d)", pgid))
 			syscall.Kill(-pgid, syscall.SIGKILL)
-			r.logger.Info("sent SIGKILL to process group", "pgid", pgid)
+			ui.Warn("sent SIGKILL")
 
 			r.mu.Lock()
 			r.running = false
@@ -134,7 +127,7 @@ func (r *Runner) Stop() error {
 			r.mu.Lock()
 			if !r.running {
 				r.mu.Unlock()
-				r.logger.Info("server stopped gracefully")
+				ui.Success("server stopped gracefully")
 				return nil
 			}
 			r.mu.Unlock()

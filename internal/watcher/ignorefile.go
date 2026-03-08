@@ -2,10 +2,11 @@ package watcher
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/HITENDRAS940/hotreload/internal/ui"
 )
 
 const ignoreFileName = ".hotreloadignore"
@@ -61,28 +62,24 @@ func LoadIgnorePatterns(root string) []string {
 	}
 
 	// File not found — warn and prompt
-	fmt.Fprintf(os.Stderr, "\n[WARNING] .hotreloadignore not found in: %s\n", root)
-	fmt.Fprintf(os.Stderr, "Without it, ALL file changes in the project will trigger rebuilds.\n\n")
-	fmt.Fprintf(os.Stderr, "Would you like to continue without .hotreloadignore? (y/n): ")
+	ui.Warn(".hotreloadignore not found in: " + root)
+	ui.Warn("Without it, ALL file changes will trigger rebuilds.")
 
-	reader := bufio.NewReader(os.Stdin)
-	response, _ := reader.ReadString('\n')
-	response = strings.TrimSpace(strings.ToLower(response))
+	response := ui.Prompt("Create .hotreloadignore with sensible defaults?")
 
 	if response == "n" || response == "no" {
 		if err := createIgnoreFile(root); err != nil {
-			fmt.Fprintf(os.Stderr, "[ERROR] Could not create .hotreloadignore: %v\n", err)
-			os.Exit(1)
+			ui.Fatal("Could not create .hotreloadignore: " + err.Error())
 		}
-		fmt.Fprintf(os.Stderr, "\n[OK] Created .hotreloadignore in %s\n", root)
-		fmt.Fprintf(os.Stderr, "Using default ignore patterns. Edit .hotreloadignore to customize.\n\n")
+		ui.Success("Created .hotreloadignore in " + root)
+		ui.Info("Using default ignore patterns — edit the file to customize.")
 
 		// Load and return the newly created file's patterns
 		patterns, _ = readIgnoreFile(root)
 		return patterns
 	}
 
-	fmt.Fprintf(os.Stderr, "Continuing without .hotreloadignore — all file changes will be tracked.\n\n")
+	ui.Info("Continuing without .hotreloadignore — all file changes will be tracked.")
 	return nil
 }
 

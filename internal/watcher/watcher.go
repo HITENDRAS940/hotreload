@@ -2,13 +2,14 @@ package watcher
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+
+	"github.com/HITENDRAS940/hotreload/internal/ui"
 )
 
 type Watcher struct {
@@ -20,7 +21,6 @@ type Watcher struct {
 	done        chan struct{}
 	mu          sync.Mutex
 	watched     map[string]bool
-	logger      *slog.Logger
 	extraIgnore []string
 }
 
@@ -28,12 +28,12 @@ func NewWatcher(root string) (*Watcher, error) {
 	extraIgnore := LoadIgnorePatterns(root)
 
 	if len(extraIgnore) > 0 {
-		slog.Default().Info("loaded .hotreloadignore", "patterns", len(extraIgnore))
+		ui.Info(fmt.Sprintf("loaded .hotreloadignore  (%d patterns)", len(extraIgnore)))
 		for _, p := range extraIgnore {
-			slog.Default().Info("  excluding", "pattern", p)
+			ui.Exclude(p)
 		}
 	} else {
-		slog.Default().Info("no .hotreloadignore patterns — watching all files")
+		ui.Info("no .hotreloadignore — watching all files")
 	}
 
 	fw, err := fsnotify.NewWatcher()
@@ -49,7 +49,6 @@ func NewWatcher(root string) (*Watcher, error) {
 		errChan:     make(chan error, 10),
 		done:        make(chan struct{}),
 		watched:     make(map[string]bool),
-		logger:      slog.Default(),
 		extraIgnore: extraIgnore,
 	}
 
@@ -58,10 +57,7 @@ func NewWatcher(root string) (*Watcher, error) {
 		return nil, err
 	}
 
-	w.logger.Info("watcher initialized",
-		"root", root,
-		"watchedDirs", len(w.watched),
-	)
+	ui.Watching(len(w.watched))
 
 	go w.eventLoop()
 
@@ -71,7 +67,7 @@ func NewWatcher(root string) (*Watcher, error) {
 func (w *Watcher) walkAndWatch(root string) error {
 	return filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			w.logger.Warn("error walking directory", "path", path, "error", err)
+			ui.Warn(fmt.Sprintf("error walking %s: %v", path, err))
 			return nil
 		}
 
@@ -84,7 +80,7 @@ func (w *Watcher) walkAndWatch(root string) error {
 		}
 
 		if err := w.fw.Add(path); err != nil {
-			w.logger.Warn("could not add directory to watcher", "path", path, "error", err)
+			ui.Warn(fmt.Sprintf("could not watch %s: %v", path, err))
 			return nil
 		}
 
@@ -114,7 +110,7 @@ func (w *Watcher) eventLoop() {
 			if event.Op&fsnotify.Create != 0 {
 				info, err := os.Stat(event.Name)
 				if err == nil && info.IsDir() {
-					w.logger.Info("new directory detected, adding to watcher", "path", event.Name)
+					ui.Info("new directory — adding to watch: " + event.Name)
 					w.fw.Add(event.Name)
 					w.mu.Lock()
 					w.watched[event.Name] = true
@@ -123,7 +119,6 @@ func (w *Watcher) eventLoop() {
 			}
 
 			if isWatchable(event.Name) {
-				w.logger.Debug("file change detected", "path", event.Name, "op", event.Op)
 				w.debounc.Trigger()
 			}
 
@@ -134,7 +129,7 @@ func (w *Watcher) eventLoop() {
 			select {
 			case w.errChan <- err:
 			default:
-				w.logger.Error("watcher error (buffer full)", "error", err)
+				ui.Error("watcher error (buffer full): " + err.Error())
 			}
 		}
 	}
