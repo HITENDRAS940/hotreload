@@ -137,7 +137,7 @@ func Watching(n int) {
 // ServerWriter returns an io.Writer that prefixes every line of server output
 // with a dim green gutter so it is visually distinct from hotreload's own logs.
 //
-//	  │  Server listening on :8080
+//	│  Server listening on :8080
 func ServerWriter() io.Writer {
 	return &prefixWriter{buf: &bytes.Buffer{}}
 }
