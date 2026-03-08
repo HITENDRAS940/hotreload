@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/HITENDRAS940/hotreload/internal/ui"
@@ -47,9 +46,7 @@ func (r *Runner) Start() error {
 
 	cmd := exec.Command(parts[0], parts[1:]...)
 
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
-	}
+	setSysProcAttr(cmd)
 
 	sw := ui.ServerWriter()
 	cmd.Stdout = sw
@@ -101,11 +98,16 @@ func (r *Runner) Stop() error {
 		return fmt.Errorf("server is not running")
 	}
 	pgid := r.pgid
+	cmd := r.cmd
 	r.mu.Unlock()
 
 	ui.Step(fmt.Sprintf("stopping server  (pgid: %d)", pgid))
 
-	syscall.Kill(-pgid, syscall.SIGTERM)
+	killProcessGroup(pgid, false)
+	// Portable fallback (needed on Windows where killProcessGroup is a no-op).
+	if cmd.Process != nil {
+		cmd.Process.Signal(os.Interrupt) //nolint:errcheck
+	}
 
 	timeout := time.After(3 * time.Second)
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -115,7 +117,7 @@ func (r *Runner) Stop() error {
 		select {
 		case <-timeout:
 			ui.Warn(fmt.Sprintf("SIGTERM timeout, sending SIGKILL  (pgid: %d)", pgid))
-			syscall.Kill(-pgid, syscall.SIGKILL)
+			killProcessGroup(pgid, true)
 			ui.Warn("sent SIGKILL")
 
 			r.mu.Lock()
