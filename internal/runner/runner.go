@@ -51,8 +51,9 @@ func (r *Runner) Start() error {
 		Setpgid: true,
 	}
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	sw := ui.ServerWriter()
+	cmd.Stdout = sw
+	cmd.Stderr = sw
 	cmd.Stdin = os.Stdin
 
 	err := cmd.Start()

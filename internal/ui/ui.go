@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -130,4 +132,35 @@ func Watching(n int) {
 	} else {
 		hiWhite.Fprintf(os.Stderr, "watching %d directories\n", n)
 	}
+}
+
+// ServerWriter returns an io.Writer that prefixes every line of server output
+// with a dim green gutter so it is visually distinct from hotreload's own logs.
+//
+//	  │  Server listening on :8080
+func ServerWriter() io.Writer {
+	return &prefixWriter{buf: &bytes.Buffer{}}
+}
+
+type prefixWriter struct {
+	buf *bytes.Buffer
+}
+
+var serverPrefix = func() string {
+	gutter := color.New(color.FgGreen).Sprint("  \u2502  ")
+	return gutter
+}()
+
+func (pw *prefixWriter) Write(p []byte) (int, error) {
+	pw.buf.Write(p)
+	for {
+		line, err := pw.buf.ReadString('\n')
+		if err != nil {
+			// incomplete line — put it back
+			pw.buf.WriteString(line)
+			break
+		}
+		fmt.Fprint(os.Stdout, serverPrefix+line)
+	}
+	return len(p), nil
 }
