@@ -12,32 +12,45 @@ import (
 )
 
 type Watcher struct {
-	fw      *fsnotify.Watcher
-	root    string
-	debounc *DebouncedSignal
-	events  chan struct{}
-	errChan chan error
-	done    chan struct{}
-	mu      sync.Mutex
-	watched map[string]bool
-	logger  *slog.Logger
+	fw          *fsnotify.Watcher
+	root        string
+	debounc     *DebouncedSignal
+	events      chan struct{}
+	errChan     chan error
+	done        chan struct{}
+	mu          sync.Mutex
+	watched     map[string]bool
+	logger      *slog.Logger
+	extraIgnore []string
 }
 
 func NewWatcher(root string) (*Watcher, error) {
+	extraIgnore := LoadIgnorePatterns(root)
+
+	if len(extraIgnore) > 0 {
+		slog.Default().Info("loaded .hotreloadignore", "patterns", len(extraIgnore))
+		for _, p := range extraIgnore {
+			slog.Default().Info("  excluding", "pattern", p)
+		}
+	} else {
+		slog.Default().Info("no .hotreloadignore patterns — watching all files")
+	}
+
 	fw, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, fmt.Errorf("cannot create fsnotify watcher: %w", err)
 	}
 
 	w := &Watcher{
-		fw:      fw,
-		root:    root,
-		debounc: NewDebouncedSignal(150 * time.Millisecond),
-		events:  make(chan struct{}),
-		errChan: make(chan error, 10),
-		done:    make(chan struct{}),
-		watched: make(map[string]bool),
-		logger:  slog.Default(),
+		fw:          fw,
+		root:        root,
+		debounc:     NewDebouncedSignal(150 * time.Millisecond),
+		events:      make(chan struct{}),
+		errChan:     make(chan error, 10),
+		done:        make(chan struct{}),
+		watched:     make(map[string]bool),
+		logger:      slog.Default(),
+		extraIgnore: extraIgnore,
 	}
 
 	if err := w.walkAndWatch(root); err != nil {
@@ -66,7 +79,7 @@ func (w *Watcher) walkAndWatch(root string) error {
 			return nil
 		}
 
-		if shouldIgnore(path) {
+		if shouldIgnore(path, w.extraIgnore) {
 			return filepath.SkipDir
 		}
 
@@ -94,7 +107,7 @@ func (w *Watcher) eventLoop() {
 				return
 			}
 
-			if shouldIgnore(event.Name) {
+			if shouldIgnore(event.Name, w.extraIgnore) {
 				continue
 			}
 

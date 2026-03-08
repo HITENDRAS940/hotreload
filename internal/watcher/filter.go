@@ -5,30 +5,32 @@ import (
 	"strings"
 )
 
-func shouldIgnore(path string) bool {
+var defaultIgnorePatterns = []string{
+	".git",
+	".gitignore",
+	"node_modules",
+	".tmp",
+	".swp",
+	".swo",
+	"~",
+	"*.tmp",
+	".DS_Store",
+	"thumbs.db",
+	"go.sum",
+	"vendor",
+	"dist",
+	"build",
+	"bin",
+	".vscode",
+	".idea",
+}
+
+func shouldIgnore(path string, extra []string) bool {
 	path = filepath.ToSlash(path)
 
-	ignorePatterns := []string{
-		".git",
-		".gitignore",
-		"node_modules",
-		".tmp",
-		".swp",
-		".swo",
-		"~",
-		"*.tmp",
-		".DS_Store",
-		"thumbs.db",
-		"go.sum",
-		"vendor",
-		"dist",
-		"build",
-		"bin",
-		".vscode",
-		".idea",
-	}
+	allPatterns := append(defaultIgnorePatterns, extra...)
 
-	for _, pattern := range ignorePatterns {
+	for _, pattern := range allPatterns {
 		if strings.Contains(path, "/"+pattern+"/") || strings.HasPrefix(path, pattern+"/") {
 			return true
 		}

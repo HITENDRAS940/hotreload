@@ -24,6 +24,7 @@ func Parse() Config {
 		fmt.Fprintf(os.Stderr, "Usage: hotreload [flags]\n\nFlags:\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nExample:\n  hotreload --root ./myproject --build \"go build -o ./bin/server ./cmd/server\" --exec \"./bin/server\"\n")
+		fmt.Fprintf(os.Stderr, "\nIgnore patterns:\n  Add a .hotreloadignore file in your project root to exclude files/folders.\n")
 	}
 
 	flag.Parse()

@@ -18,6 +18,7 @@ hotreload --root ./myproject \
 ✅ **Crash-Loop Prevention** — 3 crashes in 10s triggers 5s backoff  
 ✅ **Real-Time Output** — No buffering, see build/server logs immediately  
 ✅ **Shell Command Support** — Quotes + complex args handled automatically  
+✅ **.hotreloadignore** — Exclude files/folders via a simple ignore file in your project root  
 
 ## Installation
 
@@ -55,9 +56,42 @@ hotreload \
 ```
 
 **Flags:**
-- `--root` — Project directory to watch (required)
+- `--root` — Project directory to watch (default: `.`)
 - `--build` — Shell command to rebuild project (required)
-- `--exec` — Shell command to run after build (optional)
+- `--exec` — Shell command to run after build (required)
+
+### Ignoring Files and Folders (.hotreloadignore)
+
+Place a `.hotreloadignore` file in your project root to exclude files and folders. One pattern per line:
+
+```
+# My project ignore file
+
+.cache
+tmp
+*.log
+.env.local
+generated/
+```
+
+**If `.hotreloadignore` is missing**, hotreload will warn you and ask:
+```
+[WARNING] .hotreloadignore not found in: /path/to/project
+Without it, ALL file changes in the project will trigger rebuilds.
+
+Would you like to continue without .hotreloadignore? (y/n):
+```
+
+- **`y`** → Continue, all file changes trigger rebuilds
+- **`n`** → Automatically creates a `.hotreloadignore` with sensible defaults in your project root, then continues
+
+**On every start**, hotreload logs which patterns are active:
+```
+level=INFO msg="loaded .hotreloadignore" patterns=5
+level=INFO msg="  excluding" pattern=.cache
+level=INFO msg="  excluding" pattern=tmp
+level=INFO msg="  excluding" pattern=*.log
+```
 
 ### Examples
 
@@ -113,6 +147,9 @@ Flags:
 
 Example:
   hotreload --root ./myproject --build "go build -o ./bin/server ./cmd/server" --exec "./bin/server"
+
+Ignore patterns:
+  Add a .hotreloadignore file in your project root to exclude files/folders.
 ```
 
 ## Installation Verification

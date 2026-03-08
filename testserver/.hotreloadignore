@@ -1,0 +1,40 @@
+# Hotreload Ignore File
+# Files and folders listed here will be excluded from file watching.
+# One pattern per line. Lines starting with # are comments.
+#
+# Examples:
+#   .cache          -> ignores any folder/file named .cache
+#   *.log           -> ignores all .log files
+#   tmp             -> ignores any folder/file named tmp
+#   .env.local      -> ignores a specific file
+
+# Version control
+.git
+
+# Dependencies
+node_modules
+vendor
+
+# Build outputs
+dist
+build
+bin
+
+# IDE / Editor
+.vscode
+.idea
+
+# Temporary / cache files
+.cache
+tmp
+*.tmp
+*.log
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+thumbs.db
+
+# Go module checksum (changes frequently, not source)
+go.sum
