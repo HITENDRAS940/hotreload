@@ -13,17 +13,17 @@ import (
 )
 
 type Watcher struct {
-	fw           *fsnotify.Watcher
-	root         string
-	debounc      *DebouncedSignal
-	events       chan struct{}
-	errChan      chan error
-	done         chan struct{}
-	mu           sync.Mutex
-	watched      map[string]bool
-	extraIgnore  []string
-	watchAll     bool   // true when no .hotreloadignore — watch every file
-	buildOutDir  string // directory of the exec binary — always ignored
+	fw          *fsnotify.Watcher
+	root        string
+	debounc     *DebouncedSignal
+	events      chan struct{}
+	errChan     chan error
+	done        chan struct{}
+	mu          sync.Mutex
+	watched     map[string]bool
+	extraIgnore []string
+	watchAll    bool   // true when no .hotreloadignore — watch every file
+	buildOutDir string // directory of the exec binary — always ignored
 }
 
 func NewWatcher(root, execPath string) (*Watcher, error) {
