@@ -22,18 +22,25 @@ type Watcher struct {
 	mu          sync.Mutex
 	watched     map[string]bool
 	extraIgnore []string
+	watchAll    bool // true when no .hotreloadignore — watch every file
 }
 
 func NewWatcher(root string) (*Watcher, error) {
 	extraIgnore := LoadIgnorePatterns(root)
 
-	if len(extraIgnore) > 0 {
+	// nil means the file was not found and user chose to continue without it —
+	// in that mode we watch every file with no filtering at all.
+	watchAll := extraIgnore == nil
+
+	if !watchAll && len(extraIgnore) > 0 {
 		ui.Info(fmt.Sprintf("loaded .hotreloadignore  (%d patterns)", len(extraIgnore)))
 		for _, p := range extraIgnore {
 			ui.Exclude(p)
 		}
+	} else if !watchAll {
+		ui.Info("empty .hotreloadignore — watching all files")
 	} else {
-		ui.Info("no .hotreloadignore — watching all files")
+		ui.Info("no .hotreloadignore — watching every file change")
 	}
 
 	fw, err := fsnotify.NewWatcher()
@@ -50,6 +57,7 @@ func NewWatcher(root string) (*Watcher, error) {
 		done:        make(chan struct{}),
 		watched:     make(map[string]bool),
 		extraIgnore: extraIgnore,
+		watchAll:    watchAll,
 	}
 
 	if err := w.walkAndWatch(root); err != nil {
@@ -75,7 +83,8 @@ func (w *Watcher) walkAndWatch(root string) error {
 			return nil
 		}
 
-		if shouldIgnore(path, w.extraIgnore) {
+		// When watchAll, skip nothing — add every directory
+		if !w.watchAll && shouldIgnore(path, w.extraIgnore) {
 			return filepath.SkipDir
 		}
 
@@ -103,7 +112,8 @@ func (w *Watcher) eventLoop() {
 				return
 			}
 
-			if shouldIgnore(event.Name, w.extraIgnore) {
+			// When watchAll, skip shouldIgnore entirely
+			if !w.watchAll && shouldIgnore(event.Name, w.extraIgnore) {
 				continue
 			}
 
@@ -118,7 +128,9 @@ func (w *Watcher) eventLoop() {
 				}
 			}
 
-			if isWatchable(event.Name) {
+			// When watchAll, every file event triggers a rebuild;
+			// otherwise only .go files and extension-less files.
+			if w.watchAll || isWatchable(event.Name) {
 				w.debounc.Trigger()
 			}
 
